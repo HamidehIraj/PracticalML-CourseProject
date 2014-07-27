@@ -1,0 +1,166 @@
+Practical Machine Learning Course Project - Human Activity Recognition
+===
+The goal of this project is to predict human activity based on sensor data. We have a training set of 19622 observations and 160 variables , a test set of 20 observations and 160 variables. The target variable is called "classe"" and includes A,B,C,D and E states.
+
+
+Loading the data
+===
+```{r,cache=TRUE}
+training <- read.csv("pml-training.csv", na.strings=c(".", "NA", "", "?"),header=TRUE, strip.white=TRUE)
+testing <- read.csv("testing3.csv", na.strings=c(".", "NA", "", "?"), header=TRUE, sep=",", strip.white=TRUE)
+```
+
+Data Munging
+===
+
+
+
+Part 1- removing ident(X variable)
+
+```{r}
+ident.index <- 1
+
+training1 <- training[,-ident.index]
+testing1  <- testing [,-ident.index]
+names(training)[ident.index]
+```
+
+
+
+Part 2- Removing columns that have only one unique value
+
+```{r}
+factor1.index <- c() 
+for (m in (1 : ncol(training1)))   {
+  
+  
+  if (   is.factor(training1[ ,m])  & nlevels(training1[ ,m]) == 1   )
+  {   factor1.index <- append(factor1.index,m) 
+  }}
+
+training2 <- training1[,-factor1.index]
+testing2  <- testing1 [,-factor1.index]
+names(training2)[factor1.index] # 6 variables
+```
+
+
+
+Part 3- Removing Columns that have too many NAs(there are some column that have exactly 19216 NAs)
+
+```{r}
+missing.index <- c() 
+for (n in (1 : ncol(training2)))   {
+  
+  
+  if (   sum(is.na(training2[ ,n])) == 19216   )
+    missing.index <- append(missing.index,n) 
+  }
+training3 <- training2[,-missing.index]
+testing3  <- testing2 [,-missing.index]
+head(names(training2)[missing.index],10) #94 variables
+```
+
+
+
+Part 4 - Finding training and test set variable differences
+
+```{r, eval=FALSE}
+
+setdiff(names(training2),names(testing2)) # classe
+setdiff(names(testing2),names(training2)) #problem_id
+
+```
+
+
+
+Part 5 - adding problem_id to training dataset and classe to testing dataset to make column names the same
+
+```{r}
+# adding columns
+training3$problem_id <- NA
+testing3 $classe     <- NA
+
+#sorting both training and test datasets based on column names
+training3       <- training3[,order(names(training3))]
+testing3        <- testing3 [,order(names(testing3))]
+```
+
+
+
+Partitioning the data
+===
+```{r}
+nobs     <- nrow(training3) # 19622 observations 
+sample   <- train <- sample(nrow(training3), 0.7*nobs) # 13735 observations
+validate <- sample(setdiff(seq_len(nrow(training3)), train), 0.15*nobs) # 2943 observations
+test     <- setdiff(setdiff(seq_len(nrow(training3)), train), validate) # 2944 observations
+```
+
+
+
+Building the random forest model
+===
+```{r, cache=TRUE}
+input <- names(training3)[! names(training3) %in% c("classes","problem_id")]
+target <- "classe"
+
+require(randomForest, quietly=TRUE)
+
+rf <- randomForest(classe ~ .,
+        data=training3[sample,c(input, target)],
+        ntree=500,mtry=7,importance=TRUE,replace=FALSE)
+```
+
+
+
+random Forest -Predicting on test set and Publishing Results
+===
+```{r, eval=FALSE}
+
+newdata.rf <- na.omit(testing3[,c(input)])
+pr.rf <- predict(rf, newdata.rf ) 
+
+# Extract the relevant variables from the training3.
+sdata.rf <- subset(testing3[,], select=c( "classe"))
+
+# Output the combined data.
+write.csv(cbind(sdata.rf, pr.rf), file="testing3_score_idents.csv", row.names=FALSE)
+
+```
+
+
+
+Buiding The Second Model for Prediction - Support Vector Machines
+===
+Using the random forest models 17 out of 20 test cases on the course website passed. For predicting the remaining 3 I used support vector machines.
+
+```{r, eval=FALSE}
+
+require(kernlab, quietly=TRUE)
+
+ksvm <- ksvm(as.factor(classe) ~ .,
+      data=training3[training3,c(input, target)],
+      kernel="rbfdot",
+      prob.model=TRUE)
+```
+
+
+
+Support Vector Machines -Predicting on test set and Publishing Results
+===
+```{r,eval=FALSE}
+
+newdata.svm =na.omit(testing3[,c(input)]
+# Obtain probability scores for the SVM model on training3.csv.
+pr.svm <- predict(ksvm,newdata.svm ))
+
+# Extract the relevant variables from the dataset.
+sdata.svm <- subset(testing3[,], select=c("X", "classe"))
+
+# Output the combined data.
+write.csv(cbind(sdata.svm, pr.svm), file="C:\Users\Asus\Documents\training3_score_svm.csv", row.names=FALSE)
+
+```
+
+
+
